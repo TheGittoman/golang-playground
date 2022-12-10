@@ -1,10 +1,8 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
-	"log"
-	"os"
+	"playground/src/filereader"
 	"sync"
 	"time"
 )
@@ -17,50 +15,18 @@ func main() {
 	start := time.Now()
 	wg := new(sync.WaitGroup)
 	dataChan := make(chan string)
-	go loadFile(&dataChan, fileName)
-	words := saveWords(wg, &dataChan, concurrency)
 
-	// words := []string{}
-	// for word := range dataChan {
-	// 	words = append(words, word)
-	// }
+	// load data in to a channel
+	file, size := filereader.LoadFile(&dataChan, fileName)
+	defer file.Close()
+	fmt.Println("size of file: ", size)
 
+	go filereader.ScanFile(file, &dataChan)
+
+	// send data to a channel
+	words := filereader.SaveWords(wg, &dataChan, concurrency)
+
+	fmt.Println("time elapsed: ", time.Since(start))
 	fmt.Println("length of wordlist: ", len(words))
 	fmt.Println("first word: ", words[0], "last word: ", words[len(words)-1])
-	fmt.Println("time elapsed: ", time.Since(start))
-}
-
-// load words from the file
-func loadFile(dataChan *chan string, fileName string) {
-	// opening the file for reading
-	file, err := os.Open(fileName)
-	if err != nil {
-		log.Fatalln("Error Opening the file: ", err)
-	}
-	defer file.Close()
-	// scanner for reading the file
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		*dataChan <- scanner.Text()
-	}
-	close(*dataChan)
-}
-
-// read words from the data channel
-func saveWords(wg *sync.WaitGroup, dataChan *chan string, concurrency int) []string {
-	wg.Add(1)
-	words := []string{}
-	// read work concurrently
-	go func() {
-		for i := 0; i < concurrency; i++ {
-			wg.Add(1)
-			for word := range *dataChan {
-				words = append(words, word)
-			}
-			wg.Done()
-		}
-		wg.Done()
-	}()
-	wg.Wait()
-	return words
 }
